@@ -55,7 +55,11 @@ void readPot(BlackADC *pot){
 	}
 }
 
+<<<<<<< HEAD
 int main(){
+=======
+ int main(){
+>>>>>>> f85c65e7324cc65cdbf578c1f24108253dbff268
 	 int res;
 	 pthread_t Pot1, Pot2;
 	 void *thread_result;
@@ -85,6 +89,7 @@ int main(){
 			 perror("Falha na configuração de política de escalonamento");
 			 exit(EXIT_FAILURE);
 	 }
+<<<<<<< HEAD
 
 	 res = pthread_attr_setdetachstate(&thread_attr1, PTHREAD_CREATE_DETACHED);
 	 if (res != 0) {
@@ -163,3 +168,81 @@ int main(){
 
 	 return(0);
 }
+=======
+
+	 res = pthread_attr_setdetachstate(&thread_attr1, PTHREAD_CREATE_DETACHED);
+	 if (res != 0) {
+			 perror("Falha na configuração de atributo detached");
+			 exit(EXIT_FAILURE);
+	 }
+	 res = pthread_attr_setdetachstate(&thread_attr2, PTHREAD_CREATE_DETACHED);
+	 if (res != 0) {
+			 perror("Falha na configuração de atributo detached");
+			 exit(EXIT_FAILURE);
+	 }
+
+	 mid_priority = sched_get_priority_min(SCHED_RR);
+	 mid_priority = mid_priority/2;
+	 min_priority = sched_get_priority_min(SCHED_RR);
+
+	 res = pthread_create(&Pot1, &thread_attr, readPot, NULL);
+	 if (res != 0) {
+			 perror("Falha na criação da thread");
+			 exit(EXIT_FAILURE);
+	 }
+
+	 res = pthread_create(&Pot2, &thread_attr, readPot, NULL);
+	 if (res != 0) {
+			 perror("Falha na criação da thread");
+			 exit(EXIT_FAILURE);
+	 }
+
+
+	 while(!parar){
+		 vPot1 = PotSon1.getNumericValue();
+		 vPot2 = PotSon2.getNumericValue();
+		 if(vPot1 > 1.0){
+			 scheduling_value.sched_priority = mid_priority;
+			 res = pthread_attr_setschedparam(&thread_attr1, &scheduling_value);
+	     if (res != 0) {
+	         perror("Falha na configuração da pol�tica de escalonamento");
+	         exit(EXIT_FAILURE);
+	     }
+		 }if(vPot2 > 1.0){
+			 scheduling_value.sched_priority = mid_priority;
+			 res = pthread_attr_setschedparam(&thread_attr2, &scheduling_value);
+	     if (res != 0) {
+	         perror("Falha na configuração da pol�tica de escalonamento");
+	         exit(EXIT_FAILURE);
+	     }
+		 }if(vPot1 < 1.0){
+			 scheduling_value.sched_priority = min_priority;
+			 res = pthread_attr_setschedparam(&thread_attr2, &scheduling_value);
+	     if (res != 0) {
+	         perror("Falha na configuração da pol�tica de escalonamento");
+	         exit(EXIT_FAILURE);
+	     }
+		 }else{
+			 scheduling_value.sched_priority = min_priority;
+			 res = pthread_attr_setschedparam(&thread_attr2, &scheduling_value);
+	     if (res != 0) {
+	         perror("Falha na configuração da pol�tica de escalonamento");
+	         exit(EXIT_FAILURE);
+		 }
+
+	 }
+	 res = pthread_join(Pot1, &thread_result);
+	 if (res != 0) {
+			 perror("Thread join failed");
+			 exit(EXIT_FAILURE);
+	 }
+	 res = pthread_join(Pot2, &thread_result);
+	 if (res != 0) {
+			 perror("Thread join failed");
+			 exit(EXIT_FAILURE);
+	 }
+
+
+	 return(0);
+ }
+>>>>>>> f85c65e7324cc65cdbf578c1f24108253dbff268
