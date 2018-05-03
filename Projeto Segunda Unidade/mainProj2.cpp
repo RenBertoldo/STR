@@ -5,11 +5,13 @@
 
 #include <time.h>
 #include <unistd.h>
-#include <thread>
 #include <stdlib.h>
 #include <iostream>
-#include <pthread.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <sys/types.h>
 #include "BlackGPIO/BlackGPIO.h"
+#include "BlackADC/BlackADC.h"
 #include "ADC/Adc.h"
 
 using namespace BlackLib;
@@ -28,7 +30,7 @@ int MidPrio = 10;
 int LowPrio = 18;
 int valorCarga = 10000;
 int showLed = 0;
-
+float vSon1, vSon2;
 
 void carga(int k){
 	float f = 0.999999;
@@ -39,125 +41,62 @@ void carga(int k){
 		}
 	}
 }
-void readPot(BlackADC *pot){
-  while(!parar){
-		if(showLed == 0){
-			LedSon1.setValue(high);
-			LedSon2.setValue(low);
-			carga(valorCarga);
-			showLed++;
-		}else{
-			LedSon1.setValue(low);
-			LedSon2.setValue(high);
-			carga(valorCarga);
-			showLed--;
-		}
-	}
+
+int main(){
+	int res;
+	pid_t son1, son2;
+
+	son1 = fork();   // dividindo o processo em dois
+  switch(son1)
+    {
+      case -1:       // erro na abertura do processo filho
+        exit(1);
+      case 0:        // Parte a ser executada pelo processo Filho1
+				while(!parar){
+					carga(valorCarga);
+					if(showLed==0){
+						LedSon1.setValeu(high);
+						LedSon2.setValeu(low);
+						showLed++;
+					}
+				}
+				break;
+      default:       // parte a ser executada pelo processo Pai
+				son2 = fork();   // dividindo o processo em dois
+				switch(son2)
+					{
+						case -1:       // erro na abertura do processo filho
+							exit(1);
+						case 0:        // Parte a ser executada pelo processo Filho2
+							while(!parar){
+								carga(valorCarga);
+								if(showLed==1){
+									LedSon1.setValeu(low);
+									LedSon2.setValeu(high);
+									showLed--;
+								}
+							}
+							break;
+						default:       // parte a ser executada pelo processo Pai
+							setpriority(PRIO_PROCESS, getpid(), HighPrio);
+							while(!parar){
+								vSon1 = PotSon1.getNumericValue();
+								vSon2 = PotSon2.getNumericValue();
+								if(vSon1>=1.0){
+									setpriority(PRIO_PROCESS,son1,MidPrio);
+								}
+								if(vSon2>=1.0){
+									setpriority(PRIO_PROCESS,son2,MidPrio);
+								}
+								if(vSon1<1.0){
+									setpriority(PRIO_PROCESS,son1,LowPrio);
+								}
+								if (vSon2<1.0) {
+									setpriority(PRIO_PROCESS,son2,LowPrio);
+								}
+							}
+				 }
+				 break;
+   }
+	return(0);
 }
-
- int main(){
-	 int res;
-	 pthread_t Pot1, Pot2;
-	 void *thread_result;
-	 pthread_attr_t thread_attr1,thread_attr2;
-	 sched_param scheduling_value;
-	 int  mid_priority, min_priority;
-	 float vPot1,vPot2;
-
-	 res = pthread_attr_init(&thread_attr1);
-	 if (res != 0) {
-			 perror("Falha na criação de Atributo");
-			 exit(EXIT_FAILURE);
-	 }
-	 res = pthread_attr_init(&thread_attr2);
-	 if (res != 0) {
-			 perror("Falha na criação de Atributo");
-			 exit(EXIT_FAILURE);
-	 }
-
-	 res = pthread_attr_setschedpolicy(&thread_attr1, SCHED_RR);
-	 if (res != 0) {
-			 perror("Falha na configuração de política de escalonamento");
-			 exit(EXIT_FAILURE);
-	 }
-	 res = pthread_attr_setschedpolicy(&thread_attr2, SCHED_RR);
-	 if (res != 0) {
-			 perror("Falha na configuração de política de escalonamento");
-			 exit(EXIT_FAILURE);
-	 }
-
-	 res = pthread_attr_setdetachstate(&thread_attr1, PTHREAD_CREATE_DETACHED);
-	 if (res != 0) {
-			 perror("Falha na configuração de atributo detached");
-			 exit(EXIT_FAILURE);
-	 }
-	 res = pthread_attr_setdetachstate(&thread_attr2, PTHREAD_CREATE_DETACHED);
-	 if (res != 0) {
-			 perror("Falha na configuração de atributo detached");
-			 exit(EXIT_FAILURE);
-	 }
-
-	 mid_priority = sched_get_priority_min(SCHED_RR);
-	 mid_priority = mid_priority/2;
-	 min_priority = sched_get_priority_min(SCHED_RR);
-
-	 res = pthread_create(&Pot1, &thread_attr, readPot, NULL);
-	 if (res != 0) {
-			 perror("Falha na criação da thread");
-			 exit(EXIT_FAILURE);
-	 }
-
-	 res = pthread_create(&Pot2, &thread_attr, readPot, NULL);
-	 if (res != 0) {
-			 perror("Falha na criação da thread");
-			 exit(EXIT_FAILURE);
-	 }
-
-
-	 while(!parar){
-		 vPot1 = PotSon1.getNumericValue();
-		 vPot2 = PotSon2.getNumericValue();
-		 if(vPot1 > 1.0){
-			 scheduling_value.sched_priority = mid_priority;
-			 res = pthread_attr_setschedparam(&thread_attr1, &scheduling_value);
-	     if (res != 0) {
-	         perror("Falha na configuração da pol�tica de escalonamento");
-	         exit(EXIT_FAILURE);
-	     }
-		 }if(vPot2 > 1.0){
-			 scheduling_value.sched_priority = mid_priority;
-			 res = pthread_attr_setschedparam(&thread_attr2, &scheduling_value);
-	     if (res != 0) {
-	         perror("Falha na configuração da pol�tica de escalonamento");
-	         exit(EXIT_FAILURE);
-	     }
-		 }if(vPot1 < 1.0){
-			 scheduling_value.sched_priority = min_priority;
-			 res = pthread_attr_setschedparam(&thread_attr2, &scheduling_value);
-	     if (res != 0) {
-	         perror("Falha na configuração da pol�tica de escalonamento");
-	         exit(EXIT_FAILURE);
-	     }
-		 }else{
-			 scheduling_value.sched_priority = min_priority;
-			 res = pthread_attr_setschedparam(&thread_attr2, &scheduling_value);
-	     if (res != 0) {
-	         perror("Falha na configuração da pol�tica de escalonamento");
-	         exit(EXIT_FAILURE);
-		 }
-
-	 }
-	 res = pthread_join(Pot1, &thread_result);
-	 if (res != 0) {
-			 perror("Thread join failed");
-			 exit(EXIT_FAILURE);
-	 }
-	 res = pthread_join(Pot2, &thread_result);
-	 if (res != 0) {
-			 perror("Thread join failed");
-			 exit(EXIT_FAILURE);
-	 }
-
-
-	 return(0);
- }
